@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import io
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go  # Sử dụng Plotly thay cho Matplotlib
 
 # Nhập các file xử lý thuật toán hiện tại của bạn trong dự án
 from dxf_reader import DXFReader
@@ -10,7 +10,7 @@ from toolpath import ToolpathGenerator
 from gcode_writer import GCodeWriter
 
 st.set_page_config(layout="wide") 
-st.title("CAM DXF Cutter Control Dashboard - Web Phiên Bản")
+st.title("CAM DXF Cutter Control Dashboard - Web Phiên Bản Cao Cấp")
 
 # Thiết lập layout thành 2 cột
 col_sidebar, col_display = st.columns([1, 2]) # Tỷ lệ 1:2 giúp vùng hiển thị rộng hơn
@@ -64,40 +64,32 @@ with col_display:
             st.info(f"Tìm thấy {len(detected_parts)} chi tiết kín trong bản vẽ.")
             
             # ==================================================
-            # CHỨC NĂNG THAY ĐỔI THỨ TỰ CẮT THEO Ý MUỐN (MỚI ✨)
+            # CHỨC NĂNG THAY ĐỔI THỨ TỰ CẮT THEO Ý MUỐN
             # ==================================================
             st.subheader("🔄 Sắp xếp lại thứ tự cắt chi tiết")
             
-            # Tạo danh sách tên hiển thị (Ví dụ: ["Chi tiết số: 1", "Chi tiết số: 2", ...])
             part_options = [f"Chi tiết số: {part['id']}" for part in detected_parts]
+            st.markdown("*Mẹo: Chọn hoặc xóa các số bên dưới để xếp thứ tự chạy dao mong muốn.*")
             
-            # Hướng dẫn người dùng cách thao tác
-            st.markdown("*Mẹo: Bạn hãy nhấp vào ô dưới đây, chọn hoặc xóa các số để xếp thứ tự chạy dao mong muốn (Ví dụ chọn số 4 trước, rồi đến 3, 2, 1).*")
-            
-            # Thanh chọn đa năng hỗ trợ đổi thứ tự bằng cách nhấp chọn lần lượt
             ordered_selection = st.multiselect(
                 "Thứ tự cắt hiện tại (Hãy xếp lại nếu muốn):",
                 options=part_options,
-                default=part_options # Mặc định giữ nguyên thứ tự ban đầu 1, 2, 3, 4
+                default=part_options
             )
             
-            # Đồng bộ lại mảng detected_parts dựa trên thứ tự người dùng vừa chọn trên Web
+            # Đồng bộ lại mảng detected_parts dựa trên thứ tự người dùng chọn
             final_ordered_parts = []
             for selected_name in ordered_selection:
-                # Trích xuất lấy số ID từ chuỗi chữ "Chi tiết số: X"
                 part_id = int(selected_name.split(": ")[1])
-                # Tìm chi tiết tương ứng trong mảng gốc đưa vào mảng chạy dao mới
                 for part in detected_parts:
                     if part['id'] == part_id:
                         final_ordered_parts.append(part)
                         break
             
-            # Kiểm tra phòng trường hợp người dùng xóa hết hoặc chưa chọn đủ chi tiết
             if not final_ordered_parts:
                 final_ordered_parts = detected_parts
-                st.warning("Vui lòng không để trống mục thứ tự cắt. Hệ thống đang tạm dùng thứ tự mặc định.")
             
-            # Bước 3: Tính toán Toolpath dựa trên danh sách chi tiết ĐÃ ĐỔI THỨ TỰ ở trên
+            # Bước 3: Tính toán Toolpath dựa trên danh sách chi tiết
             gen = ToolpathGenerator(tool_diameter=tool_dia, feed_rate=feed_rate, lead_length=lead_len)
             raw_paths = gen.generate(final_ordered_parts, mode=mode_str)
 
@@ -112,40 +104,75 @@ with col_display:
                     })
                 
             # ==========================================
-            # MÀN HÌNH MÔ PHỎNG ĐỒ HỌA
+            # MÀN HÌNH MÔ PHỎNG ĐỒ HỌA PLOTLY (NÂNG CẤP ✨)
             # ==========================================
-            st.subheader("📊 Màn hình mô phỏng hình học đồ họa")
+            st.subheader("📊 Màn hình mô phỏng hình học tương tác (Zoom/Pan)")
             
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.grid(True, linestyle='--', alpha=0.5)
-            ax.set_title("Mô phỏng chạy dao theo thứ tự chỉ định", fontsize=10)
+            # Khởi tạo khung biểu đồ Plotly
+            fig = go.Figure()
             
             current_x, current_y = 0.0, 0.0
             
-            # Tiến hành vẽ lại cấu trúc đường đi của dao theo thứ tự mới sắp xếp
+            # Tiến hành vẽ lại cấu trúc đường đi của dao bằng Plotly
             for idx, path in enumerate(optimized_paths):
                 pts = path['points']
                 x_pts, y_pts = zip(*pts)
                 start_x, start_y = pts[0][0], pts[0][1]
                 
-                # Vẽ đường di dao nhanh (Grey dotted line)
-                ax.plot([current_x, start_x], [current_y, start_y], 
-                        color='gray', linestyle=':', alpha=0.7, linewidth=1.5)
+                # 1. Vẽ đường di dao nhanh G00 (Đường đứt nét màu xám)
+                fig.add_trace(go.Scatter(
+                    x=[current_x, start_x], 
+                    y=[current_y, start_y],
+                    mode='lines',
+                    line=dict(color='gray', width=1.5, dash='dot'),
+                    name=f'Di dao nhanh G00 (#{idx+1})',
+                    showlegend=False
+                ))
                 
-                # Vẽ đường cắt thực tế (Green line)
-                ax.plot(x_pts, y_pts, color='green', linewidth=2)
+                # 2. Vẽ đường cắt thực tế G01 (Đường màu xanh lá)
+                fig.add_trace(go.Scatter(
+                    x=x_pts, y=y_pts,
+                    mode='lines',
+                    line=dict(color='green', width=2.5),
+                    name=f'Đường cắt #{idx+1}'
+                ))
                 
-                # Đánh số thứ tự đường cắt #1, #2, #3 lên hình vẽ để kiểm tra trực quan
-                ax.text(start_x + 2, start_y + 2, f"#{idx+1}", color='purple', weight='bold', fontsize=12)
+                # 3. Đánh số thứ tự đường cắt #1, #2, #3 ngay tại điểm bắt đầu
+                fig.add_trace(go.Scatter(
+                    x=[start_x + 2], y=[start_y + 2],
+                    mode='text',
+                    text=[f"#{idx+1}"],
+                    textposition="top right",
+                    textfont=dict(color="purple", size=14, family="Arial Black"),
+                    showlegend=False
+                ))
                 
+                # 4. Vẽ dấu chấm đỏ tại điểm mồi dao
                 if lead_len > 0:
-                    ax.plot(start_x, start_y, 'or', markersize=4)
+                    fig.add_trace(go.Scatter(
+                        x=[start_x], y=[start_y],
+                        mode='markers',
+                        marker=dict(color='red', size=6),
+                        showlegend=False
+                    ))
 
                 # Cập nhật vị trí điểm cuối của dao
                 current_x, current_y = pts[-1][0], pts[-1][1]
             
-            ax.set_aspect('equal', adjustable='box')
-            st.pyplot(fig)
+            # Cấu hình hiển thị tỷ lệ hệ trục tọa độ vuông góc 1:1 (Aspect Ratio Equal)
+            fig.update_layout(
+                title="Sơ đồ đường chạy dao cắt thực tế",
+                xaxis_title="Trục X (mm)",
+                yaxis_title="Trục Y (mm)",
+                width=800,
+                height=600,
+                yaxis=dict(scaleanchor="x", scaleratio=1), # Giữ hình dáng không bị méo khi co giãn trình duyệt
+                showlegend=True,
+                hovermode='closest'
+            )
+            
+            # Xuất trực tiếp khung vẽ tương tác lên Web
+            st.plotly_chart(fig, use_container_width=True)
             
             # ==========================================
             # XUẤT FILE G-CODE VÀ TẠO NÚT TẢI VỀ
@@ -156,11 +183,10 @@ with col_display:
                 writer = GCodeWriter(optimized_paths)
                 gcode_text = writer.write() 
             except:
-                # Dự phòng nếu class GCodeWriter cần cấu hình khác
                 gcode_text = f"(G-Code Generated for {uploaded_file.name})\nG21\nG90\nM03\n"
                 for p in optimized_paths:
                     for pt in p['points']:
-                        gcode_text += f"G1 X{pt[0]:.3f} Y{pt[1]:.3f} F{feed_rate}\n"
+                        gcode_text += f"G1 X{pt:.3f} Y{pt:.3f} F{feed_rate}\n"
             
             st.download_button(
                 label="📥 Tải về file G-code (.nc)",
