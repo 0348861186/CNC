@@ -1,41 +1,25 @@
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-class DXFViewer:
-    def __init__(self):
-        # Tạo khung chứa đồ thị
-        self.fig, self.ax = plt.subplots(figsize=(6, 5), dpi=100)
-        self.ax.set_aspect('equal')
-        self.ax.grid(True, linestyle='--', alpha=0.5)
-        self.canvas = None          # Lưu đối tượng vẽ Matplotlib
-        self.canvas_widget = None   # Lưu widget giao diện Tkinter
-
-    def draw_parts(self, parts, canvas_frame):
-        """Vẽ chi tiết lên khung giao diện Tkinter"""
-        self.ax.clear()
-        self.ax.grid(True, linestyle='--', alpha=0.5)
-        self.ax.set_title("Bản xem trước tọa độ chi tiết cắt", fontsize=10)
-
-        if not parts:
-            self.ax.text(0.5, 0.5, "Không có dữ liệu hình học", ha='center', va='center')
-        else:
-            for part in parts:
-                # Vẽ đường bao ngoài màu xanh lam
-                x_ext, y_ext = zip(*part['exterior'])
-                self.ax.plot(x_ext, y_ext, color='blue', linewidth=2, label=f"Part {part['id']}" if part['id']==1 else "")
-                
-                # Vẽ các lỗ bên trong màu đỏ (nếu có)
-                for hole in part['interiors']:
-                    x_hole, y_hole = zip(*hole)
-                    self.ax.plot(x_hole, y_hole, color='red', linestyle='--', linewidth=1.5)
-
-        # Xóa widget cũ nếu đã tồn tại để tránh đè giao diện
-        if self.canvas_widget:
-            self.canvas_widget.destroy()
-
-        # Khởi tạo và nhúng đồ họa Matplotlib vào Tkinter Frame
-        self.canvas = FigureCanvasTkAgg(self.fig, master=canvas_frame)
-        self.canvas.draw()
+def draw_paths(optimized_paths, ax=None):
+    """
+    Hàm vẽ đường cắt CNC chuẩn hóa cho giao diện Web.
+    Nhận vào danh sách đường đi và trục tọa độ ax của Matplotlib.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 6))
+    
+    # Duyệt qua từng đường cắt trong danh sách để vẽ
+    for path in optimized_paths:
+        # Giả định path của bạn chứa danh sách các điểm dạng tọa độ [(x1, y1), (x2, y2), ...]
+        # Tách tọa độ X và Y để vẽ
+        x_coords = [point[0] for point in path]
+        y_coords = [point[1] for point in path]
         
-        self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill='both', expand=True)
+        # Vẽ đường cắt lên trục tọa độ
+        ax.plot(x_coords, y_coords, marker='o', linestyle='-', linewidth=1.5)
+        
+    ax.set_title("Mo phỏng duong cat CNC")
+    ax.set_xlabel("X (mm)")
+    ax.set_ylabel("Y (mm)")
+    ax.grid(True)
+    ax.set_aspect('equal', adjustable='box')
