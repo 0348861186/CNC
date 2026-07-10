@@ -2,3 +2,4 @@ streamlit
 ezdxf
 matplotlib
 numpy
+shapely
