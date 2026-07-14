@@ -4,3 +4,4 @@ ezdxf
 matplotlib
 numpy
 plotly
+scikit-learn
